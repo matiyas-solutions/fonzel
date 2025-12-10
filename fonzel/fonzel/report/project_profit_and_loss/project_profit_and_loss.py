@@ -159,11 +159,10 @@ def get_data(filters):
         manufacturing_cost -= (freight_charge + transportation_charge + operating_cost)
 
         labour_cost = frappe.db.sql("""
-            SELECT SUM(tsd.billing_amount)
-            FROM `tabTimesheet Detail` tsd
-            LEFT JOIN `tabTask` t ON tsd.task = t.name
-            WHERE (tsd.project = %s OR t.project = %s)
-        """, (s.project, s.project))[0][0] or 0
+            SELECT SUM(pi.grand_total)
+            FROM `tabPurchase Invoice` pi
+            WHERE pi.docstatus = 1 AND pi.project = %s
+        """, (s.project,))[0][0] or 0
 
         # operating_cost = frappe.db.sql("""
         #     SELECT SUM(bo.operating_cost)

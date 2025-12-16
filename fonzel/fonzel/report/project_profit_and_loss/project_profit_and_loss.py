@@ -158,20 +158,14 @@ def get_data(filters):
 
         manufacturing_cost -= (freight_charge + transportation_charge + operating_cost)
 
-        labour_cost = frappe.db.sql("""
-            SELECT SUM(pi.grand_total)
-            FROM `tabPurchase Invoice` pi
-            WHERE pi.docstatus = 1 AND pi.project = %s
-        """, (s.project,))[0][0] or 0
-
-        # operating_cost = frappe.db.sql("""
-        #     SELECT SUM(bo.operating_cost)
-        #     FROM `tabBOM` b
-        #     JOIN `tabBOM Operation` bo ON bo.parent = b.name
-        #     WHERE b.docstatus = 1 AND b.item = %s
-        # """, (s.item_code,))[0][0] or 0
-
-        labour_cost += operating_cost
+        labour_cost = frappe.get_list(
+            "Purchase Invoice",
+            filters={
+                "docstatus": 1,
+                "project": s.project
+            },
+            fields=["sum(grand_total) as total"]
+        )[0].total or 0
 
         other_expenses = frappe.db.sql("""
             SELECT SUM(total_sanctioned_amount)

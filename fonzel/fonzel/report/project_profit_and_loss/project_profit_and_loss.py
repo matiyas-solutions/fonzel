@@ -18,8 +18,9 @@ def get_columns():
         {"label": "Qty Sold", "fieldname": "qty_sold", "fieldtype": "Float", "precision": 2,"width": 100},
         {"label": "Selling Amount", "fieldname": "selling_amount", "fieldtype": "Currency", "width": 120},
         {"label": "Raw Material Cost", "fieldname": "manufacturing_cost", "fieldtype": "Currency", "width": 130},
-        {"label": "Labour Cost", "fieldname": "labour_cost", "fieldtype": "Currency", "width": 110},
+        {"label": "Purchase Invoice", "fieldname": "labour_cost", "fieldtype": "Currency", "width": 110},
         {"label": "Other Expenses", "fieldname": "other_expenses", "fieldtype": "Currency", "width": 120},
+        {"label": "Exchange Profit and Loss", "fieldname": "exchange_profit_and_loss", "fieldtype": "Currency", "width": 120},
         {"label": "Freight Charge", "fieldname": "freight_charge", "fieldtype": "Currency", "width": 150},
         {"label": "Transportation Charge", "fieldname": "transportation_charge", "fieldtype": "Currency", "width": 150},
         {"label": "Total Cost", "fieldname": "total_cost", "fieldtype": "Currency", "width": 120},
@@ -77,6 +78,7 @@ def get_data(filters):
                 "selling_amount": 0,
                 "manufacturing_cost": 0,
                 "labour_cost": 0,
+                "exchange_profit_and_loss": 0,
                 "other_expenses": 0,
                 "freight_charge": 0,
                 "transportation_charge": 0,
@@ -158,20 +160,14 @@ def get_data(filters):
 
         manufacturing_cost -= (freight_charge + transportation_charge + operating_cost)
 
-        labour_cost = frappe.db.sql("""
-            SELECT SUM(pi.grand_total)
-            FROM `tabPurchase Invoice` pi
-            WHERE pi.docstatus = 1 AND pi.project = %s
-        """, (s.project,))[0][0] or 0
-
-        # operating_cost = frappe.db.sql("""
-        #     SELECT SUM(bo.operating_cost)
-        #     FROM `tabBOM` b
-        #     JOIN `tabBOM Operation` bo ON bo.parent = b.name
-        #     WHERE b.docstatus = 1 AND b.item = %s
-        # """, (s.item_code,))[0][0] or 0
-
-        labour_cost += operating_cost
+        labour_cost = frappe.get_list(
+            "Purchase Invoice",
+            filters={
+                "docstatus": 1,
+                "project": s.project
+            },
+            fields=["sum(grand_total) as total"]
+        )[0].total or 0
 
         other_expenses = frappe.db.sql("""
             SELECT SUM(total_sanctioned_amount)
@@ -182,7 +178,17 @@ def get_data(filters):
         je_cost = frappe.db.sql("""
             SELECT SUM(debit)
             FROM `tabJournal Entry Account`
-            WHERE project = %s
+            join `tabJournal Entry` on `tabJournal Entry`.name = `tabJournal Entry Account`.parent
+            WHERE `tabJournal Entry`.docstatus = 1 and multi_currency = 0
+            AND project = %s
+        """, (s.project,))[0][0] or 0
+
+        exchange_profit_and_loss = frappe.db.sql("""
+            SELECT SUM(debit)
+            FROM `tabJournal Entry Account`
+            join `tabJournal Entry` on `tabJournal Entry`.name = `tabJournal Entry Account`.parent
+            WHERE `tabJournal Entry`.docstatus = 1 and multi_currency = 1
+            AND project = %s
         """, (s.project,))[0][0] or 0
 
         other_expenses += (je_cost or 0)
@@ -196,6 +202,7 @@ def get_data(filters):
         project_totals["manufacturing_cost"] += manufacturing_cost or 0
         project_totals["labour_cost"] += labour_cost or 0
         project_totals["other_expenses"] += other_expenses or 0
+        project_totals["exchange_profit_and_loss"] += exchange_profit_and_loss or 0
         project_totals["freight_charge"] += freight_charge or 0
         project_totals["transportation_charge"] += transportation_charge or 0
         project_totals["total_cost"] += total_cost or 0
@@ -216,6 +223,7 @@ def get_data(filters):
             "manufacturing_cost": manufacturing_cost,
             "labour_cost": labour_cost,
             "other_expenses": other_expenses,
+            "exchange_profit_and_loss": exchange_profit_and_loss,
             "freight_charge": freight_charge,
             "transportation_charge": transportation_charge,
             "total_cost": total_cost,

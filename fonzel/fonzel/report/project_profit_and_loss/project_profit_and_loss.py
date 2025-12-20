@@ -20,7 +20,8 @@ def get_columns():
         {"label": "Raw Material Cost", "fieldname": "manufacturing_cost", "fieldtype": "Currency", "width": 130},
         {"label": "Purchase Invoice", "fieldname": "labour_cost", "fieldtype": "Currency", "width": 110},
         {"label": "Other Expenses", "fieldname": "other_expenses", "fieldtype": "Currency", "width": 120},
-        {"label": "Exchange Profit and Loss", "fieldname": "exchange_profit_and_loss", "fieldtype": "Currency", "width": 120},
+        {"label": "Exchange Profit and Loss", "fieldname": "exchange_profit_and_loss", "fieldtype": "Currency", "width": 150},
+        {"label": "ORC", "fieldname": "orc", "fieldtype": "Currency", "width": 100},
         {"label": "Freight Charge", "fieldname": "freight_charge", "fieldtype": "Currency", "width": 150},
         {"label": "Transportation Charge", "fieldname": "transportation_charge", "fieldtype": "Currency", "width": 150},
         {"label": "Total Cost", "fieldname": "total_cost", "fieldtype": "Currency", "width": 120},
@@ -79,6 +80,7 @@ def get_data(filters):
                 "manufacturing_cost": 0,
                 "labour_cost": 0,
                 "exchange_profit_and_loss": 0,
+                "orc": 0,
                 "other_expenses": 0,
                 "freight_charge": 0,
                 "transportation_charge": 0,
@@ -179,7 +181,7 @@ def get_data(filters):
             SELECT SUM(debit)
             FROM `tabJournal Entry Account`
             join `tabJournal Entry` on `tabJournal Entry`.name = `tabJournal Entry Account`.parent
-            WHERE `tabJournal Entry`.docstatus = 1 and multi_currency = 0
+            WHERE `tabJournal Entry`.docstatus = 1 and multi_currency = 0 and custom_orc = 0
             AND project = %s
         """, (s.project,))[0][0] or 0
 
@@ -187,13 +189,21 @@ def get_data(filters):
             SELECT SUM(debit)
             FROM `tabJournal Entry Account`
             join `tabJournal Entry` on `tabJournal Entry`.name = `tabJournal Entry Account`.parent
-            WHERE `tabJournal Entry`.docstatus = 1 and multi_currency = 1
+            WHERE `tabJournal Entry`.docstatus = 1 and multi_currency = 1 and custom_orc = 0
+            AND project = %s
+        """, (s.project,))[0][0] or 0
+
+        orc = frappe.db.sql("""
+            SELECT SUM(debit)
+            FROM `tabJournal Entry Account`
+            join `tabJournal Entry` on `tabJournal Entry`.name = `tabJournal Entry Account`.parent
+            WHERE `tabJournal Entry`.docstatus = 1 and multi_currency = 0 and custom_orc = 1
             AND project = %s
         """, (s.project,))[0][0] or 0
 
         other_expenses += (je_cost or 0)
 
-        total_cost = manufacturing_cost + labour_cost + other_expenses + transportation_charge + freight_charge
+        total_cost = manufacturing_cost + labour_cost + other_expenses + transportation_charge + freight_charge + exchange_profit_and_loss + orc
         profit = s.selling_amount - total_cost
         profit_percent = (profit / s.selling_amount * 100) if s.selling_amount else 0
 
@@ -203,6 +213,7 @@ def get_data(filters):
         project_totals["labour_cost"] += labour_cost or 0
         project_totals["other_expenses"] += other_expenses or 0
         project_totals["exchange_profit_and_loss"] += exchange_profit_and_loss or 0
+        project_totals["orc"] += orc or 0
         project_totals["freight_charge"] += freight_charge or 0
         project_totals["transportation_charge"] += transportation_charge or 0
         project_totals["total_cost"] += total_cost or 0
@@ -224,6 +235,7 @@ def get_data(filters):
             "labour_cost": labour_cost,
             "other_expenses": other_expenses,
             "exchange_profit_and_loss": exchange_profit_and_loss,
+            "orc": orc,
             "freight_charge": freight_charge,
             "transportation_charge": transportation_charge,
             "total_cost": total_cost,

@@ -43,7 +43,7 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {"Journal Entry" : "public/js/journal_entry.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -181,9 +181,9 @@ after_install = "fonzel.install.after_install"
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
 # along with any modifications made in other Frappe apps
-# override_doctype_dashboards = {
-# 	"Task": "fonzel.task.get_dashboard_data"
-# }
+override_doctype_dashboards = {
+    "Project": "fonzel.override.journal_entry_dashboard.get_dashboard_for_project",
+}   
 
 # exempt linked doctypes from being automatically cancelled
 #
@@ -242,3 +242,12 @@ after_install = "fonzel.install.after_install"
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
 
+
+fixtures = [
+    {
+        "dt": "Workspace",
+        "filters": {
+            "name": ["in", ["Projects"]]
+        }
+    },
+]

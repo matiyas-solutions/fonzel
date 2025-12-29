@@ -13,5 +13,13 @@ CREATE_FIELDS = {
             "insert_after": "voucher_type",
             "is_system_generated": 0
         },
+        {
+            "label": "Project",
+            "fieldname": "project",
+            "fieldtype": "Link",
+            "insert_after": "company",
+            "options": "Project",
+            "is_system_generated": 0
+        }
     ]
 }

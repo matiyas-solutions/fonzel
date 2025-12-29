@@ -177,29 +177,47 @@ def get_data(filters):
             WHERE project = %s AND docstatus = 1
         """, (s.project,))[0][0] or 0
 
+        # 1️⃣ Normal JE Cost (multi_currency = 0, custom_orc = 0)
         je_cost = frappe.db.sql("""
-            SELECT SUM(debit)
-            FROM `tabJournal Entry Account`
-            join `tabJournal Entry` on `tabJournal Entry`.name = `tabJournal Entry Account`.parent
-            WHERE `tabJournal Entry`.docstatus = 1 and multi_currency = 0 and custom_orc = 0
-            AND project = %s
-        """, (s.project,))[0][0] or 0
+            SELECT SUM(jea.debit)
+            FROM `tabJournal Entry Account` jea
+            JOIN `tabJournal Entry` je
+                ON je.name = jea.parent
+            WHERE
+                je.docstatus = 1
+                AND je.multi_currency = 0
+                AND je.custom_orc = 0
+                AND jea.project = %s
+        """, (s.project,), as_list=True)[0][0] or 0
 
+
+        # 2️⃣ Exchange Profit & Loss (multi_currency = 1)
         exchange_profit_and_loss = frappe.db.sql("""
-            SELECT SUM(debit)
-            FROM `tabJournal Entry Account`
-            join `tabJournal Entry` on `tabJournal Entry`.name = `tabJournal Entry Account`.parent
-            WHERE `tabJournal Entry`.docstatus = 1 and multi_currency = 1 and custom_orc = 0
-            AND project = %s
-        """, (s.project,))[0][0] or 0
+            SELECT SUM(jea.debit)
+            FROM `tabJournal Entry Account` jea
+            JOIN `tabJournal Entry` je
+                ON je.name = jea.parent
+            WHERE
+                je.docstatus = 1
+                AND je.multi_currency = 1
+                AND je.custom_orc = 0
+                AND jea.project = %s
+        """, (s.project,), as_list=True)[0][0] or 0
 
+
+        # 3️⃣ ORC entries (custom_orc = 1)
         orc = frappe.db.sql("""
-            SELECT SUM(debit)
-            FROM `tabJournal Entry Account`
-            join `tabJournal Entry` on `tabJournal Entry`.name = `tabJournal Entry Account`.parent
-            WHERE `tabJournal Entry`.docstatus = 1 and multi_currency = 0 and custom_orc = 1
-            AND project = %s
-        """, (s.project,))[0][0] or 0
+            SELECT SUM(jea.debit)
+            FROM `tabJournal Entry Account` jea
+            JOIN `tabJournal Entry` je
+                ON je.name = jea.parent
+            WHERE
+                je.docstatus = 1
+                AND je.multi_currency = 0
+                AND je.custom_orc = 1
+                AND jea.project = %s
+        """, (s.project,), as_list=True)[0][0] or 0
+
 
         other_expenses += (je_cost or 0)
 

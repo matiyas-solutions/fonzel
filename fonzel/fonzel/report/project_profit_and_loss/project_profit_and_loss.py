@@ -15,7 +15,7 @@ def get_columns():
         {"label": "Item Code", "fieldname": "item_code", "fieldtype": "Link", "options": "Item", "width": 120},
         {"label": "Item Name", "fieldname": "item_name", "fieldtype": "Data", "width": 200},
         {"label": "UOM", "fieldname": "uom", "fieldtype": "Data", "width": 80},
-        {"label": "Qty Sold", "fieldname": "qty_sold", "fieldtype": "Float", "precision": 2,"width": 100},
+        {"label": "Qty Sold", "fieldname": "qty_sold", "fieldtype": "Float", "precision": 2, "width": 100},
         {"label": "Selling Amount", "fieldname": "selling_amount", "fieldtype": "Currency", "width": 120},
         {"label": "Raw Material Cost", "fieldname": "manufacturing_cost", "fieldtype": "Currency", "width": 130},
         {"label": "Purchase Invoice", "fieldname": "labour_cost", "fieldtype": "Currency", "width": 110},
@@ -31,14 +31,17 @@ def get_columns():
 
 
 def get_data(filters):
+
     values = {}
     conditions = ""
+
     if filters and filters.get("project"):
         conditions += " AND si.project = %(project)s"
         values["project"] = filters.get("project")
 
     project_company_join = ""
     project_company_filter = ""
+
     if filters and filters.get("company"):
         project_company_join = " LEFT JOIN tabProject p ON si.project = p.name "
         project_company_filter = " AND p.company = %(company)s "
@@ -68,9 +71,12 @@ def get_data(filters):
     project_totals = {}
     project_header_index = None
 
-
     for s in sales:
+
+        is_stock_item = frappe.db.get_value("Item", s.item_code, "is_stock_item")
+
         if s.project != last_project:
+
             if last_project and project_header_index is not None:
                 data[project_header_index].update(project_totals)
 
@@ -90,138 +96,133 @@ def get_data(filters):
             }
 
             project_header_index = len(data)
+
             data.append({
                 "project": s.project,
-                "bold": 1       
+                "bold": 1
             })
 
             last_project = s.project
 
-        manufacturing_cost = frappe.db.sql("""
-            SELECT SUM(sed.valuation_rate * sed.qty)
-            FROM `tabStock Entry Detail` sed
-            JOIN `tabStock Entry` se ON sed.parent = se.name
-            WHERE se.docstatus = 1 AND se.purpose = 'Manufacture'
-              AND se.project = %s AND sed.item_code = %s
-        """, (s.project, s.item_code))[0][0] or 0
+        # ✅ ALWAYS initialize variables
+        manufacturing_cost = 0
+        labour_cost = 0
+        other_expenses = 0
+        transportation_charge = 0
+        freight_charge = 0
+        exchange_profit_and_loss = 0
+        orc = 0
 
-        work_order = frappe.db.get_list(
-            "Stock Entry",
-            {"purpose": "Manufacture", "docstatus": 1, "project": s.project},
-            "work_order"
-        )
+        if is_stock_item:
 
-        total_transport_charge = 0
-        total_freight_charge = 0
+            manufacturing_cost = frappe.db.sql("""
+                SELECT SUM(sed.valuation_rate * sed.qty)
+                FROM `tabStock Entry Detail` sed
+                JOIN `tabStock Entry` se ON sed.parent = se.name
+                WHERE se.docstatus = 1
+                  AND se.purpose = 'Manufacture'
+                  AND se.project = %s
+                  AND sed.item_code = %s
+            """, (s.project, s.item_code))[0][0] or 0
 
-        company = frappe.get_value("Project", s.project, "company")
-        company_abbr = frappe.get_value("Company", company, "abbr")
-
-        transport_account = f"Tranport Charges - {company_abbr}"
-        freight_account = f"Freight and Forwarding Charges - {company_abbr}"
-
-        def get_charge(account, item_code):
-            row = frappe.db.sql("""
-                SELECT 
-                    SUM(lci.applicable_charges) AS amt,
-                    SUM(lci.qty) AS qty
-                FROM `tabLanded Cost Voucher` lcv
-                JOIN `tabLanded Cost Item` lci ON lci.parent = lcv.name
-                JOIN `tabLanded Cost Taxes and Charges` t ON t.parent = lcv.name
-                JOIN `tabLanded Cost Purchase Receipt` lpr ON lpr.parent = lcv.name
-                JOIN `tabPurchase Receipt` pr ON pr.name = lpr.receipt_document
-                WHERE lcv.docstatus = 1
-                  AND t.expense_account = %s
-                  AND pr.project = %s
-                  AND lci.item_code = %s
-            """, (account, s.project, item_code), as_dict=True)
-            return row[0] if row else None
-
-        # Loop work order items
-        operating_cost = 0
-        for wo in work_order:
-            operating_cost += frappe.db.get_value("Work Order",{"name":wo.work_order,"docstatus": 1, "project": s.project},"total_operating_cost") 
-            items = frappe.db.get_all(
-                "Work Order Item",
-                {"parent": wo.work_order},
-                ["item_code", "required_qty"]
+            work_order = frappe.db.get_list(
+                "Stock Entry",
+                {"purpose": "Manufacture", "docstatus": 1, "project": s.project},
+                "work_order"
             )
 
-            for item in items:
+            total_transport_charge = 0
+            total_freight_charge = 0
 
-                t = get_charge(transport_account, item.item_code)
-                if t and t.qty:
-                    total_transport_charge += (t.amt / t.qty) * item.required_qty
+            company = frappe.get_value("Project", s.project, "company")
+            company_abbr = frappe.get_value("Company", company, "abbr")
 
-                f = get_charge(freight_account, item.item_code)
-                if f and f.qty:
-                    total_freight_charge += (f.amt / f.qty) * item.required_qty
+            transport_account = f"Tranport Charges - {company_abbr}"
+            freight_account = f"Freight and Forwarding Charges - {company_abbr}"
 
-        transportation_charge = total_transport_charge
-        freight_charge = total_freight_charge
+            def get_charge(account, item_code):
+                row = frappe.db.sql("""
+                    SELECT 
+                        SUM(lci.applicable_charges) AS amt,
+                        SUM(lci.qty) AS qty
+                    FROM `tabLanded Cost Voucher` lcv
+                    JOIN `tabLanded Cost Item` lci ON lci.parent = lcv.name
+                    JOIN `tabLanded Cost Taxes and Charges` t ON t.parent = lcv.name
+                    JOIN `tabLanded Cost Purchase Receipt` lpr ON lpr.parent = lcv.name
+                    JOIN `tabPurchase Receipt` pr ON pr.name = lpr.receipt_document
+                    WHERE lcv.docstatus = 1
+                    AND t.expense_account = %s
+                    AND pr.project = %s
+                    AND lci.item_code = %s
+                """, (account, s.project, item_code), as_dict=True)
+                return row[0] if row else None
 
-        manufacturing_cost -= (freight_charge + transportation_charge + operating_cost)
+            # Loop work order items
+            operating_cost = 0
+            for wo in work_order:
+                operating_cost += frappe.db.get_value("Work Order",{"name":wo.work_order,"docstatus": 1, "project": s.project},"total_operating_cost") 
+                items = frappe.db.get_all(
+                    "Work Order Item",
+                    {"parent": wo.work_order},
+                    ["item_code", "required_qty"]
+                )
 
-        labour_cost = frappe.get_list(
-            "Purchase Invoice",
-            filters={
-                "docstatus": 1,
-                "project": s.project
-            },
-            fields=["sum(grand_total) as total"]
-        )[0].total or 0
+                for item in items:
 
-        other_expenses = frappe.db.sql("""
-            SELECT SUM(total_sanctioned_amount)
-            FROM `tabExpense Claim`
-            WHERE project = %s AND docstatus = 1
-        """, (s.project,))[0][0] or 0
+                    t = get_charge(transport_account, item.item_code)
+                    if t and t.qty:
+                        total_transport_charge += (t.amt / t.qty) * item.required_qty
 
-        # 1️⃣ Normal JE Cost (multi_currency = 0, custom_orc = 0)
-        je_cost = frappe.db.sql("""
-            SELECT SUM(jea.debit)
-            FROM `tabJournal Entry Account` jea
-            JOIN `tabJournal Entry` je
-                ON je.name = jea.parent
-            WHERE
-                je.docstatus = 1
-                AND je.multi_currency = 0
-                AND je.custom_orc = 0
-                AND jea.project = %s
-        """, (s.project,), as_list=True)[0][0] or 0
+                    f = get_charge(freight_account, item.item_code)
+                    if f and f.qty:
+                        total_freight_charge += (f.amt / f.qty) * item.required_qty
 
+            transportation_charge = total_transport_charge
+            freight_charge = total_freight_charge
 
-        # 2️⃣ Exchange Profit & Loss (multi_currency = 1)
-        exchange_profit_and_loss = frappe.db.sql("""
-            SELECT SUM(jea.debit)
-            FROM `tabJournal Entry Account` jea
-            JOIN `tabJournal Entry` je
-                ON je.name = jea.parent
-            WHERE
-                je.docstatus = 1
-                AND je.multi_currency = 1
-                AND je.custom_orc = 0
-                AND jea.project = %s
-        """, (s.project,), as_list=True)[0][0] or 0
+            manufacturing_cost -= (freight_charge + transportation_charge + operating_cost)
 
+            labour_cost = frappe.db.get_value(
+                "Purchase Invoice",
+                {"docstatus": 1, "project": s.project},
+                "SUM(grand_total)"
+            ) or 0
 
-        # 3️⃣ ORC entries (custom_orc = 1)
-        orc = frappe.db.sql("""
-            SELECT SUM(jea.debit)
-            FROM `tabJournal Entry Account` jea
-            JOIN `tabJournal Entry` je
-                ON je.name = jea.parent
-            WHERE
-                je.docstatus = 1
-                AND je.multi_currency = 0
-                AND je.custom_orc = 1
-                AND jea.project = %s
-        """, (s.project,), as_list=True)[0][0] or 0
+            other_expenses = frappe.db.sql("""
+                SELECT SUM(total_sanctioned_amount)
+                FROM `tabExpense Claim`
+                WHERE project = %s AND docstatus = 1
+            """, (s.project,))[0][0] or 0
 
+            exchange_profit_and_loss = frappe.db.sql("""
+                SELECT SUM(jea.debit)
+                FROM `tabJournal Entry Account` jea
+                JOIN `tabJournal Entry` je ON je.name = jea.parent
+                WHERE je.docstatus = 1
+                  AND je.multi_currency = 1
+                  AND je.custom_orc = 0
+                  AND jea.project = %s
+            """, (s.project,))[0][0] or 0
 
-        other_expenses += (je_cost or 0)
+            orc = frappe.db.sql("""
+                SELECT SUM(jea.debit)
+                FROM `tabJournal Entry Account` jea
+                JOIN `tabJournal Entry` je ON je.name = jea.parent
+                WHERE je.docstatus = 1
+                  AND je.custom_orc = 1
+                  AND jea.project = %s
+            """, (s.project,))[0][0] or 0
 
-        total_cost = manufacturing_cost + labour_cost + other_expenses + transportation_charge + freight_charge + exchange_profit_and_loss + orc
+        total_cost = (
+            manufacturing_cost
+            + labour_cost
+            + other_expenses
+            + transportation_charge
+            + freight_charge
+            + exchange_profit_and_loss
+            + orc
+        )
+
         profit = s.selling_amount - total_cost
         profit_percent = (profit / s.selling_amount * 100) if s.selling_amount else 0
 
@@ -259,8 +260,7 @@ def get_data(filters):
             "total_cost": total_cost,
             "profit": profit,
             "profit_percent": profit_percent,
-            "indent": 1,
-            "bold": 0
+            "indent": 1
         })
 
     if last_project and project_header_index is not None:

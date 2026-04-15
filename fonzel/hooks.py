@@ -5,10 +5,7 @@ app_description = "Fonzel"
 app_email = "business@matiyas.com"
 app_license = "mit"
 
-# Apps
-# ------------------
-
-# required_apps = []
+required_apps = ["hrms"]
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
@@ -250,4 +247,8 @@ fixtures = [
             "name": ["in", ["Projects"]]
         }
     },
+]
+
+website_route_rules = [
+	{"from_route": "/hrms/<path:app_path>", "to_route": "hrms"},
 ]

@@ -1,0 +1,13 @@
+{
+    "private": true,
+    "name": "fonzel",
+    "workspaces": [
+        "frontend"
+    ],
+    "scripts": {
+        "postinstall": "yarn install-pwa-deps",
+        "install-pwa-deps": "cd frontend && yarn install --check-files",
+        "build": "yarn build-pwa",
+        "build-pwa": "cd frontend && yarn build"
+    }
+}

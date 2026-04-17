@@ -10,12 +10,25 @@ console.log('Starting: Copying original HRMS src, public and root files...');
 fs.cpSync(path.join(hrmsAppPath, 'src'), overrideSrcPath, { recursive: true, force: true });
 fs.cpSync(path.join(hrmsAppPath, 'public'), overridePublicPath, { recursive: true, force: true });
 
-const rootFiles = ['index.html', 'tailwind.config.js', 'postcss.config.js', 'jsconfig.json', 'ionic.config.json'];
+const rootFiles = ['index.html', 'jsconfig.json', 'ionic.config.json'];
 rootFiles.forEach(file => {
     const src = path.join(hrmsAppPath, file);
     const dest = path.join(__dirname, file);
     if (fs.existsSync(src)) {
         fs.cpSync(src, dest, { force: true });
+    }
+});
+
+const configFiles = ['tailwind.config.js', 'postcss.config.js'];
+configFiles.forEach(file => {
+    const src = path.join(hrmsAppPath, file);
+    if (fs.existsSync(src)) {
+        let dest = path.join(__dirname, file);
+        const content = fs.readFileSync(src, 'utf8');
+        if (content.includes('module.exports')) {
+            dest = dest.replace('.js', '.cjs');
+        }
+        fs.writeFileSync(dest, content);
     }
 });
 

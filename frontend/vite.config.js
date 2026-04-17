@@ -68,7 +68,7 @@ export default defineConfig({
         emptyOutDir: true,
         target: "es2015",
         commonjsOptions: {
-            include: [/tailwind.config.js/, /node_modules/],
+            include: [/tailwind\.config\.(js|cjs)/, /node_modules/],
         },
         sourcemap: true,
         rollupOptions: {
@@ -83,7 +83,9 @@ export default defineConfig({
         include: [
             "frappe-ui > feather-icons",
             "showdown",
-            "tailwind.config.js",
+            fs.existsSync(path.resolve(__dirname, "tailwind.config.cjs"))
+                ? "tailwind.config.cjs"
+                : "tailwind.config.js",
             "engine.io-client",
         ],
     },

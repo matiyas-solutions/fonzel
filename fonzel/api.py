@@ -19,9 +19,7 @@ def mark_attendance(status):
     }, "name")
 
     if existing:
-        frappe.db.set_value("Attendance", existing, "status", status)
-        frappe.msgprint(_("Attendance updated successfully to {0}.").format(status))
-        return existing
+        frappe.throw(_("Attendance is already marked for today."))
     else:
         doc = frappe.new_doc("Attendance")
         doc.employee = employee

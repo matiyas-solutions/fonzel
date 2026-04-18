@@ -20,6 +20,7 @@
 						:options="[
 							{ label: 'Present', value: 'Present' },
 							{ label: 'Work From Home', value: 'Work From Home' },
+							{ label: 'Half Day', value: 'Half Day' },
 						]"
 					/>
 

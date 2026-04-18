@@ -29,11 +29,7 @@ const __ = inject("$translate")
 console.log("Custom Home Loaded from Fonzel")
 
 const quickLinks = [
-	{
-		icon: markRaw(AttendanceIcon),
-		title: __("Request Attendance"),
-		route: "AttendanceRequestFormView",
-	},
+
 	{
 		icon: markRaw(ShiftIcon),
 		title: __("Request a Shift"),
